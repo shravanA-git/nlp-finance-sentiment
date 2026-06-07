@@ -1,0 +1,619 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FinSentiment — Financial News Sentiment Dashboard</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <style>
+    body { font-family: 'Inter', system-ui, sans-serif; }
+    .tab-active { border-bottom: 2px solid #6366f1; color: #6366f1; }
+    .sentiment-positive { background: #dcfce7; color: #166534; }
+    .sentiment-neutral  { background: #f3f4f6; color: #374151; }
+    .sentiment-negative { background: #fee2e2; color: #991b1b; }
+    .dot-positive { background: #22c55e; }
+    .dot-neutral  { background: #9ca3af; }
+    .dot-negative { background: #ef4444; }
+    .spinner { border: 3px solid #e5e7eb; border-top-color: #6366f1; border-radius: 50%; width: 24px; height: 24px; animation: spin 0.7s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .confidence-bar { transition: width 0.4s ease; }
+  </style>
+</head>
+<body class="bg-gray-50 text-gray-900 min-h-screen">
+
+  <!-- Header -->
+  <header class="bg-white border-b border-gray-200 sticky top-0 z-10">
+    <div class="max-w-5xl mx-auto px-6 py-4 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <div class="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center">
+          <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/>
+          </svg>
+        </div>
+        <div>
+          <h1 class="text-lg font-bold text-gray-900 leading-none">FinSentiment</h1>
+          <p class="text-xs text-gray-500">BERT-based financial news analysis</p>
+        </div>
+      </div>
+      <span class="text-xs bg-indigo-50 text-indigo-600 px-2 py-1 rounded-full font-medium">Built by Shravan Anand</span>
+    </div>
+
+    <!-- Tabs -->
+    <div class="max-w-5xl mx-auto px-6 flex gap-6 text-sm font-medium text-gray-500">
+      <button onclick="showTab('analyze')" id="tab-analyze" class="tab-active pb-3 pt-1">Analyze Headline</button>
+      <button onclick="showTab('ticker')"  id="tab-ticker"  class="pb-3 pt-1 hover:text-gray-700">Ticker Dashboard</button>
+      <button onclick="showTab('timeline')" id="tab-timeline" class="pb-3 pt-1 hover:text-gray-700">Timeline</button>
+      <button onclick="showTab('watchlist')" id="tab-watchlist" class="pb-3 pt-1 hover:text-gray-700">Watchlist</button>
+      <button onclick="showTab('backtest')" id="tab-backtest" class="pb-3 pt-1 hover:text-gray-700">Backtest</button>
+    </div>
+  </header>
+
+  <main class="max-w-5xl mx-auto px-6 py-8">
+
+    <!-- ── TAB: Analyze ─────────────────────────────────────────────────── -->
+    <div id="tab-analyze-content">
+      <div class="mb-6">
+        <h2 class="text-xl font-semibold mb-1">Analyze a Headline</h2>
+        <p class="text-gray-500 text-sm">Paste any financial headline to get an instant sentiment score.</p>
+      </div>
+
+      <div class="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
+        <textarea id="headline-input"
+          class="w-full border border-gray-200 rounded-lg p-3 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-indigo-300 h-20"
+          placeholder="e.g. Apple reports record quarterly earnings, beating analyst expectations by 15%"></textarea>
+
+        <div class="flex items-center gap-3 mt-3">
+          <button onclick="analyzeHeadline()"
+            class="bg-indigo-600 text-white px-5 py-2 rounded-lg text-sm font-medium hover:bg-indigo-700 transition">
+            Analyze
+          </button>
+          <div id="analyze-spinner" class="spinner hidden"></div>
+        </div>
+
+        <div id="analyze-result" class="hidden mt-6"></div>
+
+        <!-- Examples -->
+        <div class="mt-6 pt-5 border-t border-gray-100">
+          <p class="text-xs text-gray-400 mb-3 font-medium uppercase tracking-wide">Try an example</p>
+          <div class="flex flex-wrap gap-2">
+            <button onclick="setExample(this)" class="text-xs bg-gray-100 hover:bg-indigo-50 hover:text-indigo-600 text-gray-600 px-3 py-1.5 rounded-full transition">
+              Apple reports record quarterly earnings, beating estimates
+            </button>
+            <button onclick="setExample(this)" class="text-xs bg-gray-100 hover:bg-indigo-50 hover:text-indigo-600 text-gray-600 px-3 py-1.5 rounded-full transition">
+              Fed signals interest rate cuts amid cooling inflation
+            </button>
+            <button onclick="setExample(this)" class="text-xs bg-gray-100 hover:bg-indigo-50 hover:text-indigo-600 text-gray-600 px-3 py-1.5 rounded-full transition">
+              Tesla misses delivery targets as production challenges persist
+            </button>
+            <button onclick="setExample(this)" class="text-xs bg-gray-100 hover:bg-indigo-50 hover:text-indigo-600 text-gray-600 px-3 py-1.5 rounded-full transition">
+              Goldman upgrades Microsoft to buy with $450 price target
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── TAB: Ticker ──────────────────────────────────────────────────── -->
+    <div id="tab-ticker-content" class="hidden">
+      <div class="mb-6">
+        <h2 class="text-xl font-semibold mb-1">Ticker Dashboard</h2>
+        <p class="text-gray-500 text-sm">Enter a stock ticker to fetch and score recent news headlines.</p>
+      </div>
+
+      <div class="bg-white rounded-xl border border-gray-200 p-6 shadow-sm mb-6">
+        <div class="flex gap-3">
+          <input id="ticker-input" type="text" placeholder="e.g. AAPL, TSLA, NVDA, JPM"
+            class="flex-1 border border-gray-200 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
+            onkeydown="if(event.key==='Enter') fetchTicker()" />
+          <select id="ticker-days"
+            class="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300 text-gray-600">
+            <option value="7">7 days</option>
+            <option value="14">14 days</option>
+            <option value="30">30 days</option>
+          </select>
+          <button onclick="fetchTicker()"
+            class="bg-indigo-600 text-white px-5 py-2 rounded-lg text-sm font-medium hover:bg-indigo-700 transition">
+            Search
+          </button>
+          <div id="ticker-spinner" class="spinner hidden self-center"></div>
+        </div>
+      </div>
+
+      <div id="ticker-result"></div>
+    </div>
+
+    <!-- ── TAB: Timeline ────────────────────────────────────────────────── -->
+    <div id="tab-timeline-content" class="hidden">
+      <div class="mb-6">
+        <h2 class="text-xl font-semibold mb-1">Sentiment Timeline</h2>
+        <p class="text-gray-500 text-sm">Daily sentiment trend for a ticker over the past 30 days. Requires NewsAPI.</p>
+      </div>
+
+      <div class="bg-white rounded-xl border border-gray-200 p-6 shadow-sm mb-6">
+        <div class="flex gap-3">
+          <input id="timeline-input" type="text" placeholder="e.g. AAPL"
+            class="flex-1 border border-gray-200 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
+            onkeydown="if(event.key==='Enter') fetchTimeline()" />
+          <button onclick="fetchTimeline()"
+            class="bg-indigo-600 text-white px-5 py-2 rounded-lg text-sm font-medium hover:bg-indigo-700 transition">
+            Load Chart
+          </button>
+          <div id="timeline-spinner" class="spinner hidden self-center"></div>
+        </div>
+      </div>
+
+      <div id="timeline-result"></div>
+    </div>
+
+    <!-- ── TAB: Watchlist ───────────────────────────────────────────────── -->
+    <div id="tab-watchlist-content" class="hidden">
+      <div class="mb-6 flex items-center justify-between">
+        <div>
+          <h2 class="text-xl font-semibold mb-1">Watchlist</h2>
+          <p class="text-gray-500 text-sm">Track sentiment across multiple tickers at a glance.</p>
+        </div>
+        <button onclick="fetchWatchlist()"
+          class="text-sm text-indigo-600 hover:text-indigo-800 font-medium flex items-center gap-1">
+          ↻ Refresh
+        </button>
+      </div>
+
+      <!-- Add ticker -->
+      <div class="bg-white rounded-xl border border-gray-200 p-4 shadow-sm mb-6 flex gap-3">
+        <input id="watchlist-add-input" type="text" placeholder="Add ticker (e.g. NVDA)"
+          class="flex-1 border border-gray-200 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
+          onkeydown="if(event.key==='Enter') addToWatchlist()" />
+        <button onclick="addToWatchlist()"
+          class="bg-indigo-600 text-white px-5 py-2 rounded-lg text-sm font-medium hover:bg-indigo-700 transition">
+          + Add
+        </button>
+      </div>
+
+      <div id="watchlist-result"></div>
+    </div>
+
+    <!-- ── TAB: Backtest ────────────────────────────────────────────────── -->
+    <div id="tab-backtest-content" class="hidden">
+      <div class="mb-6">
+        <h2 class="text-xl font-semibold mb-1">Sentiment Backtest</h2>
+        <p class="text-gray-500 text-sm">Correlates daily news sentiment against next-day price returns. Same methodology used by quant funds evaluating alternative data.</p>
+      </div>
+
+      <div class="bg-white rounded-xl border border-gray-200 p-6 shadow-sm mb-6">
+        <div class="flex gap-3">
+          <input id="backtest-input" type="text" placeholder="e.g. AAPL"
+            class="flex-1 border border-gray-200 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
+            onkeydown="if(event.key==='Enter') fetchBacktest()" />
+          <button onclick="fetchBacktest()"
+            class="bg-indigo-600 text-white px-5 py-2 rounded-lg text-sm font-medium hover:bg-indigo-700 transition">
+            Run Backtest
+          </button>
+          <div id="backtest-spinner" class="spinner hidden self-center"></div>
+        </div>
+        <p class="text-xs text-gray-400 mt-2">Uses 30 days of headlines (requires NewsAPI) and yfinance price data.</p>
+      </div>
+
+      <div id="backtest-result"></div>
+    </div>
+
+  </main>
+
+  <script>
+    // LOCAL: 'http://localhost:8000'
+    // PRODUCTION: replace with your Railway URL, e.g. 'https://finsent.up.railway.app'
+    const API = 'http://localhost:8000';
+
+    // ── Tab switching ──────────────────────────────────────────────────────
+    function showTab(name) {
+      ['analyze','ticker','timeline','watchlist','backtest'].forEach(t => {
+        document.getElementById(`tab-${t}-content`).classList.toggle('hidden', t !== name);
+        const btn = document.getElementById(`tab-${t}`);
+        btn.classList.toggle('tab-active', t === name);
+        if (t !== name) btn.classList.remove('tab-active');
+      });
+      if (name === 'watchlist') fetchWatchlist();
+    }
+
+    // ── Sentiment helpers ──────────────────────────────────────────────────
+    function sentimentBadge(label) {
+      const cls = `sentiment-${label}`;
+      return `<span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold ${cls}">
+        <span class="w-1.5 h-1.5 rounded-full dot-${label}"></span>
+        ${label.charAt(0).toUpperCase() + label.slice(1)}
+      </span>`;
+    }
+
+    function confidenceBar(scores) {
+      const colors = { positive: 'bg-green-500', neutral: 'bg-gray-400', negative: 'bg-red-500' };
+      return `<div class="flex gap-1 mt-2 h-2 rounded-full overflow-hidden bg-gray-100">
+        ${['positive','neutral','negative'].map(l =>
+          `<div class="confidence-bar ${colors[l]} rounded-full" style="width:${(scores[l]*100).toFixed(1)}%" title="${l}: ${(scores[l]*100).toFixed(1)}%"></div>`
+        ).join('')}
+      </div>
+      <div class="flex gap-4 mt-1 text-xs text-gray-400">
+        ${['positive','neutral','negative'].map(l =>
+          `<span><span class="inline-block w-2 h-2 rounded-full dot-${l} mr-1"></span>${(scores[l]*100).toFixed(0)}%</span>`
+        ).join('')}
+      </div>`;
+    }
+
+    function aggregateCard(agg, title) {
+      const scoreColor = agg.score > 0.1 ? 'text-green-600' : agg.score < -0.1 ? 'text-red-600' : 'text-gray-500';
+      const scoreLabel = agg.score > 0.1 ? 'Bullish' : agg.score < -0.1 ? 'Bearish' : 'Neutral';
+      return `<div class="grid grid-cols-4 gap-4 mb-6">
+        <div class="bg-white border border-gray-200 rounded-xl p-4 shadow-sm text-center">
+          <div class="text-2xl font-bold text-green-600">${agg.positive}</div>
+          <div class="text-xs text-gray-500 mt-1">Positive</div>
+        </div>
+        <div class="bg-white border border-gray-200 rounded-xl p-4 shadow-sm text-center">
+          <div class="text-2xl font-bold text-gray-500">${agg.neutral}</div>
+          <div class="text-xs text-gray-500 mt-1">Neutral</div>
+        </div>
+        <div class="bg-white border border-gray-200 rounded-xl p-4 shadow-sm text-center">
+          <div class="text-2xl font-bold text-red-600">${agg.negative}</div>
+          <div class="text-xs text-gray-500 mt-1">Negative</div>
+        </div>
+        <div class="bg-white border border-gray-200 rounded-xl p-4 shadow-sm text-center">
+          <div class="text-2xl font-bold ${scoreColor}">${agg.score > 0 ? '+' : ''}${agg.score.toFixed(2)}</div>
+          <div class="text-xs text-gray-500 mt-1">${scoreLabel}</div>
+        </div>
+      </div>`;
+    }
+
+    // ── Tab: Analyze ───────────────────────────────────────────────────────
+    function setExample(btn) {
+      document.getElementById('headline-input').value = btn.textContent.trim();
+    }
+
+    async function analyzeHeadline() {
+      const headline = document.getElementById('headline-input').value.trim();
+      if (!headline) return;
+      const spinner = document.getElementById('analyze-spinner');
+      const result  = document.getElementById('analyze-result');
+      spinner.classList.remove('hidden');
+      result.classList.add('hidden');
+
+      try {
+        const res  = await fetch(`${API}/analyze`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ headline })
+        });
+        const data = await res.json();
+        const s    = data.sentiment;
+
+        result.innerHTML = `
+          <div class="flex items-start justify-between mb-3">
+            <p class="text-sm text-gray-700 italic flex-1 mr-4">"${data.headline}"</p>
+            ${sentimentBadge(s.label)}
+          </div>
+          <div class="text-xs text-gray-500 mb-1">Confidence: ${(s.confidence * 100).toFixed(1)}%</div>
+          ${confidenceBar(s.scores)}`;
+        result.classList.remove('hidden');
+      } catch(e) {
+        result.innerHTML = `<p class="text-red-500 text-sm">Error: ${e.message}. Is the backend running on port 8000?</p>`;
+        result.classList.remove('hidden');
+      }
+      spinner.classList.add('hidden');
+    }
+
+    // ── Tab: Ticker ────────────────────────────────────────────────────────
+    async function fetchTicker() {
+      const symbol  = document.getElementById('ticker-input').value.trim().toUpperCase();
+      const days    = document.getElementById('ticker-days').value;
+      if (!symbol) return;
+      const spinner = document.getElementById('ticker-spinner');
+      const result  = document.getElementById('ticker-result');
+      spinner.classList.remove('hidden');
+      result.innerHTML = '';
+
+      try {
+        const res  = await fetch(`${API}/ticker/${symbol}?days=${days}&max_articles=20`);
+        if (!res.ok) { const e = await res.json(); throw new Error(e.detail); }
+        const data = await res.json();
+
+        const headlinesHtml = data.headlines.map(h => `
+          <div class="flex items-start justify-between gap-4 py-4 border-b border-gray-100 last:border-0">
+            <div class="flex-1">
+              <p class="text-sm text-gray-800 leading-snug">${h.headline}</p>
+              <p class="text-xs text-gray-400 mt-1">${h.source || ''} ${h.published_at ? '· ' + new Date(h.published_at).toLocaleDateString('en-US', {month:'short', day:'numeric'}) : ''}</p>
+            </div>
+            <div class="shrink-0 text-right">
+              ${sentimentBadge(h.sentiment.label)}
+              <p class="text-xs text-gray-400 mt-1">${(h.sentiment.confidence*100).toFixed(0)}% conf.</p>
+            </div>
+          </div>`).join('');
+
+        result.innerHTML = `
+          <div class="mb-4 flex items-center gap-3">
+            <h3 class="text-lg font-semibold">${symbol}</h3>
+            <span class="text-gray-400 text-sm">${data.company_name || ''}</span>
+          </div>
+          ${aggregateCard(data.aggregate)}
+          <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+            <div class="px-6 py-4 border-b border-gray-100">
+              <h4 class="text-sm font-semibold text-gray-700">${data.headlines.length} Headlines</h4>
+            </div>
+            <div class="px-6">${headlinesHtml}</div>
+          </div>`;
+      } catch(e) {
+        result.innerHTML = `<p class="text-red-500 text-sm">Error: ${e.message}</p>`;
+      }
+      spinner.classList.add('hidden');
+    }
+
+    // ── Tab: Timeline ──────────────────────────────────────────────────────
+    let timelineChart = null;
+
+    async function fetchTimeline() {
+      const symbol  = document.getElementById('timeline-input').value.trim().toUpperCase();
+      if (!symbol) return;
+      const spinner = document.getElementById('timeline-spinner');
+      const result  = document.getElementById('timeline-result');
+      spinner.classList.remove('hidden');
+      result.innerHTML = '';
+
+      try {
+        const res  = await fetch(`${API}/ticker/${symbol}/timeline?days=30`);
+        if (!res.ok) { const e = await res.json(); throw new Error(e.detail); }
+        const data = await res.json();
+
+        if (!data.timeline.length) {
+          result.innerHTML = `<p class="text-gray-500 text-sm">No dated headlines found. This feature requires NewsAPI.</p>`;
+          spinner.classList.add('hidden');
+          return;
+        }
+
+        const labels   = data.timeline.map(p => p.date);
+        const scores   = data.timeline.map(p => p.score);
+        const positive = data.timeline.map(p => p.positive);
+        const negative = data.timeline.map(p => p.negative);
+        const neutral  = data.timeline.map(p => p.neutral);
+
+        result.innerHTML = `
+          ${aggregateCard(data.overall_aggregate)}
+          <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-6 mb-4">
+            <h4 class="text-sm font-semibold text-gray-700 mb-4">Sentiment Score Over Time</h4>
+            <canvas id="score-chart" height="80"></canvas>
+          </div>
+          <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
+            <h4 class="text-sm font-semibold text-gray-700 mb-4">Daily Headline Volume by Sentiment</h4>
+            <canvas id="bar-chart" height="80"></canvas>
+          </div>`;
+
+        // Score line chart
+        if (timelineChart) timelineChart.destroy();
+        timelineChart = new Chart(document.getElementById('score-chart'), {
+          type: 'line',
+          data: {
+            labels,
+            datasets: [{
+              label: 'Sentiment Score',
+              data: scores,
+              borderColor: '#6366f1',
+              backgroundColor: 'rgba(99,102,241,0.08)',
+              fill: true,
+              tension: 0.4,
+              pointRadius: 4,
+              pointBackgroundColor: scores.map(s => s > 0.1 ? '#22c55e' : s < -0.1 ? '#ef4444' : '#9ca3af'),
+            }]
+          },
+          options: {
+            plugins: { legend: { display: false } },
+            scales: {
+              y: { min: -1, max: 1, grid: { color: '#f3f4f6' },
+                ticks: { callback: v => v > 0 ? `+${v}` : v, font: { size: 11 } } },
+              x: { grid: { display: false }, ticks: { font: { size: 10 } } }
+            }
+          }
+        });
+
+        // Stacked bar chart
+        new Chart(document.getElementById('bar-chart'), {
+          type: 'bar',
+          data: {
+            labels,
+            datasets: [
+              { label: 'Positive', data: positive, backgroundColor: '#86efac', stack: 'a' },
+              { label: 'Neutral',  data: neutral,  backgroundColor: '#d1d5db', stack: 'a' },
+              { label: 'Negative', data: negative, backgroundColor: '#fca5a5', stack: 'a' },
+            ]
+          },
+          options: {
+            plugins: { legend: { labels: { font: { size: 11 } } } },
+            scales: {
+              x: { stacked: true, grid: { display: false }, ticks: { font: { size: 10 } } },
+              y: { stacked: true, grid: { color: '#f3f4f6' }, ticks: { font: { size: 11 } } }
+            }
+          }
+        });
+
+      } catch(e) {
+        result.innerHTML = `<p class="text-red-500 text-sm">Error: ${e.message}</p>`;
+      }
+      spinner.classList.add('hidden');
+    }
+
+    // ── Tab: Watchlist ─────────────────────────────────────────────────────
+    async function fetchWatchlist() {
+      const result = document.getElementById('watchlist-result');
+      result.innerHTML = `<div class="flex justify-center py-12"><div class="spinner"></div></div>`;
+
+      try {
+        const res  = await fetch(`${API}/watchlist`);
+        const data = await res.json();
+
+        if (!data.tickers.length) {
+          result.innerHTML = `<p class="text-gray-500 text-sm text-center py-8">Your watchlist is empty. Add a ticker above.</p>`;
+          return;
+        }
+
+        const scoreColor = s => s > 0.1 ? 'text-green-600' : s < -0.1 ? 'text-red-600' : 'text-gray-500';
+        const scoreLabel = s => s > 0.1 ? '▲ Bullish' : s < -0.1 ? '▼ Bearish' : '— Neutral';
+
+        result.innerHTML = `<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          ${data.tickers.map(t => `
+            <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
+              <div class="flex items-center justify-between mb-3">
+                <div>
+                  <span class="text-lg font-bold">${t.symbol}</span>
+                  <span class="ml-2 text-sm font-semibold ${scoreColor(t.aggregate.score)}">${scoreLabel(t.aggregate.score)}</span>
+                </div>
+                <button onclick="removeFromWatchlist('${t.symbol}')"
+                  class="text-gray-300 hover:text-red-400 text-lg leading-none transition">×</button>
+              </div>
+              <div class="flex gap-3 text-xs text-center mb-3">
+                <div class="flex-1 bg-green-50 rounded-lg py-2">
+                  <div class="font-bold text-green-700 text-base">${t.aggregate.positive}</div>
+                  <div class="text-gray-400">Positive</div>
+                </div>
+                <div class="flex-1 bg-gray-50 rounded-lg py-2">
+                  <div class="font-bold text-gray-600 text-base">${t.aggregate.neutral}</div>
+                  <div class="text-gray-400">Neutral</div>
+                </div>
+                <div class="flex-1 bg-red-50 rounded-lg py-2">
+                  <div class="font-bold text-red-600 text-base">${t.aggregate.negative}</div>
+                  <div class="text-gray-400">Negative</div>
+                </div>
+              </div>
+              ${t.latest_headline ? `<p class="text-xs text-gray-400 leading-snug line-clamp-2">"${t.latest_headline}"</p>` : ''}
+            </div>`).join('')}
+        </div>`;
+      } catch(e) {
+        result.innerHTML = `<p class="text-red-500 text-sm">Error: ${e.message}. Is the backend running?</p>`;
+      }
+    }
+
+    // ── Tab: Backtest ──────────────────────────────────────────────────────
+    let backtestChart = null;
+
+    async function fetchBacktest() {
+      const symbol  = document.getElementById('backtest-input').value.trim().toUpperCase();
+      if (!symbol) return;
+      const spinner = document.getElementById('backtest-spinner');
+      const result  = document.getElementById('backtest-result');
+      spinner.classList.remove('hidden');
+      result.innerHTML = '';
+
+      try {
+        const res  = await fetch(`${API}/backtest/${symbol}`);
+        if (!res.ok) { const e = await res.json(); throw new Error(e.detail); }
+        const data = await res.json();
+
+        const corrColor = data.correlation > 0.1 ? 'text-green-600' : data.correlation < -0.1 ? 'text-red-600' : 'text-gray-500';
+
+        const signalRows = data.signal_days.map(d => `
+          <tr class="border-t border-gray-100">
+            <td class="py-2 text-sm text-gray-700">${d.date}</td>
+            <td class="py-2 text-sm font-medium ${d.sentiment_score > 0 ? 'text-green-600' : 'text-red-600'}">${d.sentiment_score > 0 ? '+' : ''}${d.sentiment_score}</td>
+            <td class="py-2 text-sm font-medium ${d.return_pct > 0 ? 'text-green-600' : 'text-red-600'}">${d.return_pct > 0 ? '+' : ''}${d.return_pct}%</td>
+            <td class="py-2 text-sm text-gray-500">$${d.close}</td>
+          </tr>`).join('');
+
+        result.innerHTML = `
+          <div class="grid grid-cols-3 gap-4 mb-6">
+            <div class="bg-white border border-gray-200 rounded-xl p-5 shadow-sm text-center">
+              <div class="text-3xl font-bold ${corrColor}">${data.correlation > 0 ? '+' : ''}${data.correlation}</div>
+              <div class="text-xs text-gray-500 mt-1">Pearson r</div>
+              <div class="text-xs font-medium ${corrColor} mt-1">${data.correlation_strength}</div>
+            </div>
+            <div class="bg-white border border-gray-200 rounded-xl p-5 shadow-sm text-center">
+              <div class="text-3xl font-bold text-green-600">+${data.stats.avg_next_day_return_after_positive}%</div>
+              <div class="text-xs text-gray-500 mt-1">Avg next-day return</div>
+              <div class="text-xs text-gray-400 mt-1">after positive sentiment</div>
+            </div>
+            <div class="bg-white border border-gray-200 rounded-xl p-5 shadow-sm text-center">
+              <div class="text-3xl font-bold text-red-600">${data.stats.avg_next_day_return_after_negative}%</div>
+              <div class="text-xs text-gray-500 mt-1">Avg next-day return</div>
+              <div class="text-xs text-gray-400 mt-1">after negative sentiment</div>
+            </div>
+          </div>
+
+          <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-6 mb-4">
+            <h4 class="text-sm font-semibold text-gray-700 mb-4">Sentiment Score vs. Next-Day Return</h4>
+            <canvas id="backtest-chart" height="80"></canvas>
+          </div>
+
+          <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
+            <h4 class="text-sm font-semibold text-gray-700 mb-4">Top Signal Days — Sentiment Confirmed by Price</h4>
+            <table class="w-full">
+              <thead><tr class="text-xs text-gray-400 uppercase tracking-wide">
+                <th class="text-left pb-2">Date</th>
+                <th class="text-left pb-2">Sentiment</th>
+                <th class="text-left pb-2">Next-Day Return</th>
+                <th class="text-left pb-2">Close</th>
+              </tr></thead>
+              <tbody>${signalRows || '<tr><td colspan="4" class="text-sm text-gray-400 py-4">No confirmed signal days found.</td></tr>'}</tbody>
+            </table>
+          </div>`;
+
+        // Dual-axis chart: sentiment score bars + return line
+        const labels  = data.daily_data.map(d => d.date);
+        const scores  = data.daily_data.map(d => d.sentiment_score);
+        const returns = data.daily_data.map(d => d.return_pct);
+
+        if (backtestChart) backtestChart.destroy();
+        backtestChart = new Chart(document.getElementById('backtest-chart'), {
+          data: {
+            labels,
+            datasets: [
+              {
+                type: 'bar',
+                label: 'Sentiment Score',
+                data: scores,
+                backgroundColor: scores.map(s => s > 0.1 ? 'rgba(34,197,94,0.5)' : s < -0.1 ? 'rgba(239,68,68,0.5)' : 'rgba(156,163,175,0.4)'),
+                yAxisID: 'y',
+              },
+              {
+                type: 'line',
+                label: 'Next-Day Return (%)',
+                data: returns,
+                borderColor: '#6366f1',
+                backgroundColor: 'transparent',
+                pointRadius: 3,
+                tension: 0.3,
+                yAxisID: 'y2',
+              }
+            ]
+          },
+          options: {
+            plugins: { legend: { labels: { font: { size: 11 } } } },
+            scales: {
+              y:  { position: 'left',  grid: { color: '#f3f4f6' }, ticks: { font: { size: 10 }, callback: v => v > 0 ? `+${v}` : v } },
+              y2: { position: 'right', grid: { display: false },   ticks: { font: { size: 10 }, callback: v => `${v}%` } },
+              x:  { grid: { display: false }, ticks: { font: { size: 10 } } }
+            }
+          }
+        });
+
+      } catch(e) {
+        result.innerHTML = `<p class="text-red-500 text-sm">Error: ${e.message}</p>`;
+      }
+      spinner.classList.add('hidden');
+    }
+
+    async function addToWatchlist() {
+      const symbol = document.getElementById('watchlist-add-input').value.trim().toUpperCase();
+      if (!symbol) return;
+      try {
+        const res = await fetch(`${API}/watchlist`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ symbol })
+        });
+        if (!res.ok) { const e = await res.json(); alert(e.detail); return; }
+        document.getElementById('watchlist-add-input').value = '';
+        fetchWatchlist();
+      } catch(e) { alert(e.message); }
+    }
+
+    async function removeFromWatchlist(symbol) {
+      try {
+        await fetch(`${API}/watchlist/${symbol}`, { method: 'DELETE' });
+        fetchWatchlist();
+      } catch(e) { alert(e.message); }
+    }
+  </script>
+</body>
+</html>
