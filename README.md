@@ -5,7 +5,7 @@
 ![HuggingFace](https://img.shields.io/badge/HuggingFace-Transformers-FFD21E?logo=huggingface&logoColor=black)
 ![License](https://img.shields.io/badge/License-MIT-green)
 
-**Live Demo**: [finsent.netlify.app](https://finsent.netlify.app) &nbsp;|&nbsp; **API Docs**: [finsent.up.railway.app/docs](https://finsent.up.railway.app/docs)
+**Live Demo**: [financialsentiment.netlify.app](https://financialsentiment.netlify.app) &nbsp;|&nbsp; **API Docs**: [nlp-finance-sentiment.onrender.com/docs](https://nlp-finance-sentiment.onrender.com/docs)
 
 > A full-stack NLP application that classifies financial news headlines as positive, neutral, or negative using a fine-tuned BERT model — and surfaces the results as a live sentiment dashboard for any publicly traded stock.
 
