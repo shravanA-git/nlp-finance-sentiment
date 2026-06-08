@@ -155,6 +155,11 @@ def get_backtest(
     return result
 
 
+@app.get("/")
+def root():
+    return {"name": "FinSentiment API", "docs": "/docs", "health": "/health"}
+
+
 @app.get("/health")
 def health_check():
     """Check that the server and model are running."""

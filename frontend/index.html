@@ -1,617 +1,609 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>FinSentiment — Financial News Sentiment Dashboard</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-  <style>
-    body { font-family: 'Inter', system-ui, sans-serif; }
-    .tab-active { border-bottom: 2px solid #6366f1; color: #6366f1; }
-    .sentiment-positive { background: #dcfce7; color: #166534; }
-    .sentiment-neutral  { background: #f3f4f6; color: #374151; }
-    .sentiment-negative { background: #fee2e2; color: #991b1b; }
-    .dot-positive { background: #22c55e; }
-    .dot-neutral  { background: #9ca3af; }
-    .dot-negative { background: #ef4444; }
-    .spinner { border: 3px solid #e5e7eb; border-top-color: #6366f1; border-radius: 50%; width: 24px; height: 24px; animation: spin 0.7s linear infinite; }
-    @keyframes spin { to { transform: rotate(360deg); } }
-    .confidence-bar { transition: width 0.4s ease; }
-  </style>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>FinSentiment — AI-Powered Market Intelligence</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap" rel="stylesheet"/>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+  :root {
+    --bg:        #080c14;
+    --bg2:       #0d1220;
+    --bg3:       #111827;
+    --border:    #1e2d40;
+    --border2:   #243347;
+    --text:      #e2e8f0;
+    --muted:     #64748b;
+    --dim:       #94a3b8;
+    --green:     #10b981;
+    --green-dim: rgba(16,185,129,.12);
+    --red:       #f43f5e;
+    --red-dim:   rgba(244,63,94,.12);
+    --amber:     #f59e0b;
+    --amber-dim: rgba(245,158,11,.12);
+    --blue:      #3b82f6;
+    --accent:    #0ea5e9;
+    --accent2:   #06b6d4;
+    --mono:      'IBM Plex Mono', monospace;
+    --sans:      'IBM Plex Sans', system-ui, sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:var(--sans);background:var(--bg);color:var(--text);min-height:100vh;display:flex;flex-direction:column;font-size:14px}
+
+  /* ── Ticker tape ── */
+  .tape{background:var(--bg2);border-bottom:1px solid var(--border);overflow:hidden;height:32px;display:flex;align-items:center}
+  .tape-inner{display:flex;gap:32px;animation:scroll 40s linear infinite;white-space:nowrap;padding:0 20px}
+  @keyframes scroll{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}
+  .tape-item{font-family:var(--mono);font-size:12px;display:flex;gap:8px}
+  .tape-sym{color:var(--accent);font-weight:600}
+  .tape-up{color:var(--green)}
+  .tape-dn{color:var(--red)}
+
+  /* ── Header ── */
+  header{background:var(--bg2);border-bottom:1px solid var(--border);padding:0 24px;height:56px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100}
+  .logo{display:flex;align-items:center;gap:10px}
+  .logo-icon{width:28px;height:28px;background:linear-gradient(135deg,var(--accent),var(--accent2));clip-path:polygon(50% 0%,100% 38%,82% 100%,18% 100%,0% 38%);display:flex;align-items:center;justify-content:center}
+  .logo-text{font-family:var(--mono);font-size:15px;font-weight:600;letter-spacing:.5px;color:#fff}
+  .logo-sub{font-size:11px;color:var(--muted);margin-left:4px;font-weight:300}
+  .header-badge{font-family:var(--mono);font-size:11px;color:var(--green);background:var(--green-dim);border:1px solid rgba(16,185,129,.3);padding:3px 10px;border-radius:2px;display:flex;align-items:center;gap:6px}
+  .header-badge::before{content:'';width:6px;height:6px;background:var(--green);border-radius:50%;animation:pulse 2s infinite}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+
+  /* ── Layout ── */
+  .app{display:flex;flex:1}
+
+  /* ── Sidebar ── */
+  nav{width:220px;background:var(--bg2);border-right:1px solid var(--border);padding:20px 0;display:flex;flex-direction:column;position:sticky;top:56px;height:calc(100vh - 56px);overflow-y:auto}
+  .nav-section{padding:8px 16px 4px;font-size:10px;font-family:var(--mono);color:var(--muted);text-transform:uppercase;letter-spacing:1.5px}
+  .nav-item{display:flex;align-items:center;gap:10px;padding:9px 20px;cursor:pointer;color:var(--dim);transition:.15s;font-size:13px;border-left:2px solid transparent}
+  .nav-item:hover{color:var(--text);background:rgba(255,255,255,.03)}
+  .nav-item.active{color:var(--accent);background:rgba(14,165,233,.08);border-left-color:var(--accent)}
+  .nav-icon{width:16px;height:16px;opacity:.7}
+  .nav-item.active .nav-icon{opacity:1}
+
+  /* ── Main content ── */
+  main{flex:1;padding:28px 32px;overflow-y:auto;min-width:0}
+  .page{display:none}
+  .page.active{display:block}
+  .page-title{font-size:20px;font-weight:600;margin-bottom:4px}
+  .page-sub{color:var(--muted);font-size:13px;margin-bottom:24px}
+
+  /* ── Cards ── */
+  .card{background:var(--bg2);border:1px solid var(--border);border-radius:4px;padding:20px}
+  .card-sm{padding:16px}
+  .stat-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px}
+  .stat-card{background:var(--bg2);border:1px solid var(--border);border-radius:4px;padding:16px}
+  .stat-val{font-family:var(--mono);font-size:24px;font-weight:600;line-height:1}
+  .stat-label{font-size:11px;color:var(--muted);margin-top:6px;text-transform:uppercase;letter-spacing:.5px}
+  .stat-up{color:var(--green)}
+  .stat-dn{color:var(--red)}
+  .stat-neu{color:var(--amber)}
+
+  /* ── Input row ── */
+  .input-row{display:flex;gap:10px;margin-bottom:24px}
+  .inp{background:var(--bg3);border:1px solid var(--border2);color:var(--text);padding:9px 14px;font-family:var(--mono);font-size:13px;border-radius:3px;outline:none;transition:.15s}
+  .inp:focus{border-color:var(--accent);box-shadow:0 0 0 2px rgba(14,165,233,.12)}
+  .inp::placeholder{color:var(--muted)}
+  .inp-grow{flex:1}
+  select.inp{cursor:pointer}
+  .btn{padding:9px 20px;font-family:var(--mono);font-size:13px;font-weight:500;border:none;border-radius:3px;cursor:pointer;transition:.15s;white-space:nowrap}
+  .btn-primary{background:var(--accent);color:#fff}
+  .btn-primary:hover{background:#0284c7}
+  .btn-ghost{background:transparent;color:var(--dim);border:1px solid var(--border2)}
+  .btn-ghost:hover{color:var(--text);border-color:var(--dim)}
+
+  /* ── Sentiment badges ── */
+  .badge{display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:2px;font-family:var(--mono);font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.5px}
+  .badge-pos{background:var(--green-dim);color:var(--green);border:1px solid rgba(16,185,129,.3)}
+  .badge-neg{background:var(--red-dim);color:var(--red);border:1px solid rgba(244,63,94,.3)}
+  .badge-neu{background:var(--amber-dim);color:var(--amber);border:1px solid rgba(245,158,11,.3)}
+  .badge-dot{width:5px;height:5px;border-radius:50%;background:currentColor}
+
+  /* ── Headlines table ── */
+  .hl-table{width:100%;border-collapse:collapse}
+  .hl-table tr{border-bottom:1px solid var(--border)}
+  .hl-table tr:hover{background:rgba(255,255,255,.02)}
+  .hl-table td{padding:12px 8px;vertical-align:top}
+  .hl-text{font-size:13px;color:var(--text);line-height:1.5}
+  .hl-meta{font-family:var(--mono);font-size:11px;color:var(--muted);margin-top:4px}
+  .hl-conf{font-family:var(--mono);font-size:12px;color:var(--dim)}
+
+  /* ── Confidence bar ── */
+  .conf-bars{display:flex;height:4px;border-radius:1px;overflow:hidden;background:var(--bg3);margin-top:6px;gap:1px}
+  .conf-pos{background:var(--green)}
+  .conf-neu{background:var(--amber)}
+  .conf-neg{background:var(--red)}
+  .conf-labels{display:flex;gap:12px;margin-top:4px}
+  .conf-lbl{font-family:var(--mono);font-size:10px;color:var(--muted);display:flex;align-items:center;gap:4px}
+  .conf-lbl-dot{width:6px;height:6px;border-radius:50%}
+
+  /* ── Score meter ── */
+  .score-meter{position:relative;height:8px;background:linear-gradient(to right,var(--red),var(--amber),var(--green));border-radius:2px;margin:8px 0}
+  .score-pointer{position:absolute;top:-3px;width:14px;height:14px;background:var(--text);border-radius:50%;transform:translateX(-50%);box-shadow:0 0 0 2px var(--bg2)}
+
+  /* ── Watchlist cards ── */
+  .watch-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px}
+  .watch-card{background:var(--bg2);border:1px solid var(--border);border-radius:4px;padding:16px;cursor:pointer;transition:.15s}
+  .watch-card:hover{border-color:var(--border2);background:var(--bg3)}
+  .watch-sym{font-family:var(--mono);font-size:18px;font-weight:600}
+  .watch-name{font-size:12px;color:var(--muted);margin-bottom:12px}
+  .watch-bar{display:grid;grid-template-columns:1fr 1fr 1fr;gap:1px;height:4px;border-radius:2px;overflow:hidden;margin-bottom:10px}
+  .watch-latest{font-size:11px;color:var(--muted);line-height:1.4;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+
+  /* ── Spinner ── */
+  .spinner{width:20px;height:20px;border:2px solid var(--border2);border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
+
+  /* ── Section header ── */
+  .section-hdr{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid var(--border);margin-bottom:0}
+  .section-title{font-family:var(--mono);font-size:12px;text-transform:uppercase;letter-spacing:1px;color:var(--dim)}
+
+  /* ── Backtest stats ── */
+  .corr-val{font-family:var(--mono);font-size:36px;font-weight:600}
+  .signal-table{width:100%;border-collapse:collapse}
+  .signal-table th{font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:.8px;color:var(--muted);padding:8px;text-align:left;border-bottom:1px solid var(--border)}
+  .signal-table td{font-family:var(--mono);font-size:12px;padding:10px 8px;border-bottom:1px solid var(--border);vertical-align:middle}
+
+  /* ── Example pills ── */
+  .examples{display:flex;flex-wrap:wrap;gap:6px;margin-top:16px;padding-top:16px;border-top:1px solid var(--border)}
+  .example-lbl{font-size:10px;font-family:var(--mono);color:var(--muted);text-transform:uppercase;letter-spacing:.8px;width:100%}
+  .pill{font-size:12px;background:var(--bg3);border:1px solid var(--border2);color:var(--dim);padding:5px 12px;border-radius:2px;cursor:pointer;transition:.15s}
+  .pill:hover{color:var(--text);border-color:var(--accent)}
+
+  /* ── Analyze result ── */
+  .result-box{background:var(--bg3);border:1px solid var(--border2);border-radius:4px;padding:20px;margin-top:16px}
+  .result-headline{font-size:15px;color:var(--text);line-height:1.6;font-style:italic;margin-bottom:16px;padding-bottom:16px;border-bottom:1px solid var(--border)}
+
+  /* ── Chart containers ── */
+  .chart-wrap{position:relative;height:240px}
+
+  /* ── Empty state ── */
+  .empty{text-align:center;padding:48px 24px;color:var(--muted)}
+  .empty-icon{font-size:32px;margin-bottom:12px;opacity:.3}
+  .empty-text{font-size:14px}
+  .empty-sub{font-size:12px;margin-top:6px;color:var(--border2)}
+
+  /* ── Responsive ── */
+  @media(max-width:900px){nav{display:none}main{padding:20px 16px}.stat-grid{grid-template-columns:repeat(2,1fr)}}
+</style>
 </head>
-<body class="bg-gray-50 text-gray-900 min-h-screen">
+<body>
 
-  <!-- Header -->
-  <header class="bg-white border-b border-gray-200 sticky top-0 z-10">
-    <div class="max-w-5xl mx-auto px-6 py-4 flex items-center justify-between">
-      <div class="flex items-center gap-3">
-        <div class="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center">
-          <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/>
-          </svg>
-        </div>
-        <div>
-          <h1 class="text-lg font-bold text-gray-900 leading-none">FinSentiment</h1>
-          <p class="text-xs text-gray-500">BERT-based financial news analysis</p>
-        </div>
-      </div>
-      <span class="text-xs bg-indigo-50 text-indigo-600 px-2 py-1 rounded-full font-medium">Built by Shravan Anand</span>
+<!-- Ticker tape -->
+<div class="tape">
+  <div class="tape-inner" id="tape"></div>
+</div>
+
+<!-- Header -->
+<header>
+  <div class="logo">
+    <div class="logo-icon"></div>
+    <span class="logo-text">FINSENTIMENT</span>
+    <span class="logo-sub">/ AI Market Intelligence</span>
+  </div>
+  <div class="header-badge">LIVE DATA</div>
+</header>
+
+<div class="app">
+
+  <!-- Sidebar -->
+  <nav>
+    <div class="nav-section">Analysis</div>
+    <div class="nav-item active" onclick="goto('analyze')">
+      <svg class="nav-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+      Headline Analyzer
     </div>
-
-    <!-- Tabs -->
-    <div class="max-w-5xl mx-auto px-6 flex gap-6 text-sm font-medium text-gray-500">
-      <button onclick="showTab('analyze')" id="tab-analyze" class="tab-active pb-3 pt-1">Analyze Headline</button>
-      <button onclick="showTab('ticker')"  id="tab-ticker"  class="pb-3 pt-1 hover:text-gray-700">Ticker Dashboard</button>
-      <button onclick="showTab('timeline')" id="tab-timeline" class="pb-3 pt-1 hover:text-gray-700">Timeline</button>
-      <button onclick="showTab('watchlist')" id="tab-watchlist" class="pb-3 pt-1 hover:text-gray-700">Watchlist</button>
-      <button onclick="showTab('backtest')" id="tab-backtest" class="pb-3 pt-1 hover:text-gray-700">Backtest</button>
+    <div class="nav-item" onclick="goto('ticker')">
+      <svg class="nav-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/></svg>
+      Ticker Dashboard
     </div>
-  </header>
+    <div class="nav-item" onclick="goto('timeline')">
+      <svg class="nav-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z"/></svg>
+      Sentiment Timeline
+    </div>
+    <div class="nav-section" style="margin-top:8px">Portfolio</div>
+    <div class="nav-item" onclick="goto('watchlist')">
+      <svg class="nav-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"/></svg>
+      Watchlist
+    </div>
+    <div class="nav-section" style="margin-top:8px">Research</div>
+    <div class="nav-item" onclick="goto('backtest')">
+      <svg class="nav-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+      Signal Backtest
+    </div>
+    <div style="flex:1"></div>
+    <div style="padding:16px 20px;border-top:1px solid var(--border)">
+      <div style="font-size:11px;color:var(--muted);font-family:var(--mono)">Model</div>
+      <div style="font-size:12px;color:var(--dim);margin-top:2px">ProsusAI/FinBERT</div>
+      <div style="font-size:11px;color:var(--muted);font-family:var(--mono);margin-top:8px">Built by</div>
+      <div style="font-size:12px;color:var(--accent)">Shravan Anand</div>
+    </div>
+  </nav>
 
-  <main class="max-w-5xl mx-auto px-6 py-8">
+  <!-- Pages -->
+  <main>
 
-    <!-- ── TAB: Analyze ─────────────────────────────────────────────────── -->
-    <div id="tab-analyze-content">
-      <div class="mb-6">
-        <h2 class="text-xl font-semibold mb-1">Analyze a Headline</h2>
-        <p class="text-gray-500 text-sm">Paste any financial headline to get an instant sentiment score.</p>
-      </div>
+    <!-- ANALYZE -->
+    <div class="page active" id="page-analyze">
+      <div class="page-title">Headline Analyzer</div>
+      <div class="page-sub">Classify any financial headline using BERT sentiment analysis</div>
 
-      <div class="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
-        <textarea id="headline-input"
-          class="w-full border border-gray-200 rounded-lg p-3 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-indigo-300 h-20"
-          placeholder="e.g. Apple reports record quarterly earnings, beating analyst expectations by 15%"></textarea>
-
-        <div class="flex items-center gap-3 mt-3">
-          <button onclick="analyzeHeadline()"
-            class="bg-indigo-600 text-white px-5 py-2 rounded-lg text-sm font-medium hover:bg-indigo-700 transition">
-            Analyze
-          </button>
-          <div id="analyze-spinner" class="spinner hidden"></div>
+      <div class="card">
+        <textarea id="hl-input" class="inp" style="width:100%;height:80px;resize:none;display:block"
+          placeholder="e.g. Federal Reserve signals rate cuts amid cooling inflation data..."></textarea>
+        <div style="display:flex;align-items:center;gap:10px;margin-top:12px">
+          <button class="btn btn-primary" onclick="doAnalyze()">Run Analysis</button>
+          <div id="hl-spin" class="spinner" style="display:none"></div>
         </div>
 
-        <div id="analyze-result" class="hidden mt-6"></div>
-
-        <!-- Examples -->
-        <div class="mt-6 pt-5 border-t border-gray-100">
-          <p class="text-xs text-gray-400 mb-3 font-medium uppercase tracking-wide">Try an example</p>
-          <div class="flex flex-wrap gap-2">
-            <button onclick="setExample(this)" class="text-xs bg-gray-100 hover:bg-indigo-50 hover:text-indigo-600 text-gray-600 px-3 py-1.5 rounded-full transition">
-              Apple reports record quarterly earnings, beating estimates
-            </button>
-            <button onclick="setExample(this)" class="text-xs bg-gray-100 hover:bg-indigo-50 hover:text-indigo-600 text-gray-600 px-3 py-1.5 rounded-full transition">
-              Fed signals interest rate cuts amid cooling inflation
-            </button>
-            <button onclick="setExample(this)" class="text-xs bg-gray-100 hover:bg-indigo-50 hover:text-indigo-600 text-gray-600 px-3 py-1.5 rounded-full transition">
-              Tesla misses delivery targets as production challenges persist
-            </button>
-            <button onclick="setExample(this)" class="text-xs bg-gray-100 hover:bg-indigo-50 hover:text-indigo-600 text-gray-600 px-3 py-1.5 rounded-full transition">
-              Goldman upgrades Microsoft to buy with $450 price target
-            </button>
+        <div id="hl-result" style="display:none" class="result-box">
+          <div id="hl-text" class="result-headline"></div>
+          <div style="display:flex;align-items:center;gap:16px;margin-bottom:16px">
+            <div id="hl-badge"></div>
+            <div style="font-family:var(--mono);font-size:13px;color:var(--dim)">Confidence: <span id="hl-conf" style="color:var(--text)"></span></div>
+          </div>
+          <div class="conf-bars">
+            <div class="conf-pos" id="hl-bar-pos"></div>
+            <div class="conf-neu" id="hl-bar-neu"></div>
+            <div class="conf-neg" id="hl-bar-neg"></div>
+          </div>
+          <div class="conf-labels">
+            <span class="conf-lbl"><span class="conf-lbl-dot" style="background:var(--green)"></span><span id="hl-s-pos"></span> positive</span>
+            <span class="conf-lbl"><span class="conf-lbl-dot" style="background:var(--amber)"></span><span id="hl-s-neu"></span> neutral</span>
+            <span class="conf-lbl"><span class="conf-lbl-dot" style="background:var(--red)"></span><span id="hl-s-neg"></span> negative</span>
+          </div>
+          <div style="margin-top:16px">
+            <div style="font-size:11px;color:var(--muted);font-family:var(--mono);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Sentiment Score</div>
+            <div class="score-meter"><div class="score-pointer" id="hl-pointer"></div></div>
+            <div style="display:flex;justify-content:space-between;font-family:var(--mono);font-size:10px;color:var(--muted)"><span>Bearish</span><span>Neutral</span><span>Bullish</span></div>
           </div>
         </div>
+
+        <div class="examples">
+          <div class="example-lbl">Quick examples</div>
+          <span class="pill" onclick="setEx(this)">Apple reports record quarterly earnings, beating estimates by 15%</span>
+          <span class="pill" onclick="setEx(this)">Fed signals rate cuts amid cooling inflation data</span>
+          <span class="pill" onclick="setEx(this)">Tesla misses delivery targets as production challenges persist</span>
+          <span class="pill" onclick="setEx(this)">Goldman upgrades Microsoft to buy with $450 price target</span>
+          <span class="pill" onclick="setEx(this)">Retail sales decline unexpectedly, raising recession concerns</span>
+        </div>
       </div>
     </div>
 
-    <!-- ── TAB: Ticker ──────────────────────────────────────────────────── -->
-    <div id="tab-ticker-content" class="hidden">
-      <div class="mb-6">
-        <h2 class="text-xl font-semibold mb-1">Ticker Dashboard</h2>
-        <p class="text-gray-500 text-sm">Enter a stock ticker to fetch and score recent news headlines.</p>
+    <!-- TICKER -->
+    <div class="page" id="page-ticker">
+      <div class="page-title">Ticker Dashboard</div>
+      <div class="page-sub">Real-time sentiment analysis across recent news coverage</div>
+
+      <div class="input-row">
+        <input id="tk-sym" class="inp inp-grow" placeholder="Ticker symbol  —  AAPL, TSLA, NVDA, JPM..." onkeydown="if(event.key==='Enter')doTicker()"/>
+        <select id="tk-days" class="inp">
+          <option value="7">7 days</option>
+          <option value="14">14 days</option>
+          <option value="30">30 days</option>
+        </select>
+        <button class="btn btn-primary" onclick="doTicker()">Search</button>
+        <div id="tk-spin" class="spinner" style="display:none;align-self:center"></div>
       </div>
 
-      <div class="bg-white rounded-xl border border-gray-200 p-6 shadow-sm mb-6">
-        <div class="flex gap-3">
-          <input id="ticker-input" type="text" placeholder="e.g. AAPL, TSLA, NVDA, JPM"
-            class="flex-1 border border-gray-200 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
-            onkeydown="if(event.key==='Enter') fetchTicker()" />
-          <select id="ticker-days"
-            class="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300 text-gray-600">
-            <option value="7">7 days</option>
-            <option value="14">14 days</option>
-            <option value="30">30 days</option>
-          </select>
-          <button onclick="fetchTicker()"
-            class="bg-indigo-600 text-white px-5 py-2 rounded-lg text-sm font-medium hover:bg-indigo-700 transition">
-            Search
-          </button>
-          <div id="ticker-spinner" class="spinner hidden self-center"></div>
-        </div>
+      <div id="tk-result">
+        <div class="empty"><div class="empty-icon">◈</div><div class="empty-text">Enter a ticker to load sentiment data</div><div class="empty-sub">Supports any US-listed equity</div></div>
       </div>
-
-      <div id="ticker-result"></div>
     </div>
 
-    <!-- ── TAB: Timeline ────────────────────────────────────────────────── -->
-    <div id="tab-timeline-content" class="hidden">
-      <div class="mb-6">
-        <h2 class="text-xl font-semibold mb-1">Sentiment Timeline</h2>
-        <p class="text-gray-500 text-sm">Daily sentiment trend for a ticker over the past 30 days. Requires NewsAPI.</p>
+    <!-- TIMELINE -->
+    <div class="page" id="page-timeline">
+      <div class="page-title">Sentiment Timeline</div>
+      <div class="page-sub">30-day daily sentiment trend — requires NewsAPI for full history</div>
+
+      <div class="input-row">
+        <input id="tl-sym" class="inp inp-grow" placeholder="Ticker symbol  —  e.g. AAPL" onkeydown="if(event.key==='Enter')doTimeline()"/>
+        <button class="btn btn-primary" onclick="doTimeline()">Load Chart</button>
+        <div id="tl-spin" class="spinner" style="display:none;align-self:center"></div>
       </div>
 
-      <div class="bg-white rounded-xl border border-gray-200 p-6 shadow-sm mb-6">
-        <div class="flex gap-3">
-          <input id="timeline-input" type="text" placeholder="e.g. AAPL"
-            class="flex-1 border border-gray-200 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
-            onkeydown="if(event.key==='Enter') fetchTimeline()" />
-          <button onclick="fetchTimeline()"
-            class="bg-indigo-600 text-white px-5 py-2 rounded-lg text-sm font-medium hover:bg-indigo-700 transition">
-            Load Chart
-          </button>
-          <div id="timeline-spinner" class="spinner hidden self-center"></div>
-        </div>
+      <div id="tl-result">
+        <div class="empty"><div class="empty-icon">◈</div><div class="empty-text">Enter a ticker to load the timeline</div></div>
       </div>
-
-      <div id="timeline-result"></div>
     </div>
 
-    <!-- ── TAB: Watchlist ───────────────────────────────────────────────── -->
-    <div id="tab-watchlist-content" class="hidden">
-      <div class="mb-6 flex items-center justify-between">
-        <div>
-          <h2 class="text-xl font-semibold mb-1">Watchlist</h2>
-          <p class="text-gray-500 text-sm">Track sentiment across multiple tickers at a glance.</p>
-        </div>
-        <button onclick="fetchWatchlist()"
-          class="text-sm text-indigo-600 hover:text-indigo-800 font-medium flex items-center gap-1">
-          ↻ Refresh
-        </button>
+    <!-- WATCHLIST -->
+    <div class="page" id="page-watchlist">
+      <div class="page-title">Watchlist</div>
+      <div class="page-sub">Sentiment snapshot across your tracked equities</div>
+
+      <div class="input-row">
+        <input id="wl-sym" class="inp inp-grow" placeholder="Add ticker  —  e.g. NVDA" onkeydown="if(event.key==='Enter')doWlAdd()"/>
+        <button class="btn btn-primary" onclick="doWlAdd()">+ Add</button>
+        <button class="btn btn-ghost" onclick="loadWatchlist()">↻ Refresh</button>
       </div>
 
-      <!-- Add ticker -->
-      <div class="bg-white rounded-xl border border-gray-200 p-4 shadow-sm mb-6 flex gap-3">
-        <input id="watchlist-add-input" type="text" placeholder="Add ticker (e.g. NVDA)"
-          class="flex-1 border border-gray-200 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
-          onkeydown="if(event.key==='Enter') addToWatchlist()" />
-        <button onclick="addToWatchlist()"
-          class="bg-indigo-600 text-white px-5 py-2 rounded-lg text-sm font-medium hover:bg-indigo-700 transition">
-          + Add
-        </button>
+      <div id="wl-result">
+        <div class="empty"><div class="empty-icon">◈</div><div class="empty-text">Loading watchlist...</div></div>
       </div>
-
-      <div id="watchlist-result"></div>
     </div>
 
-    <!-- ── TAB: Backtest ────────────────────────────────────────────────── -->
-    <div id="tab-backtest-content" class="hidden">
-      <div class="mb-6">
-        <h2 class="text-xl font-semibold mb-1">Sentiment Backtest</h2>
-        <p class="text-gray-500 text-sm">Correlates daily news sentiment against next-day price returns. Same methodology used by quant funds evaluating alternative data.</p>
+    <!-- BACKTEST -->
+    <div class="page" id="page-backtest">
+      <div class="page-title">Signal Backtest</div>
+      <div class="page-sub">Correlate daily sentiment scores against next-day price returns — the same methodology quant funds use when evaluating alternative data</div>
+
+      <div class="input-row">
+        <input id="bt-sym" class="inp inp-grow" placeholder="Ticker symbol  —  e.g. AAPL" onkeydown="if(event.key==='Enter')doBacktest()"/>
+        <button class="btn btn-primary" onclick="doBacktest()">Run Backtest</button>
+        <div id="bt-spin" class="spinner" style="display:none;align-self:center"></div>
       </div>
 
-      <div class="bg-white rounded-xl border border-gray-200 p-6 shadow-sm mb-6">
-        <div class="flex gap-3">
-          <input id="backtest-input" type="text" placeholder="e.g. AAPL"
-            class="flex-1 border border-gray-200 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
-            onkeydown="if(event.key==='Enter') fetchBacktest()" />
-          <button onclick="fetchBacktest()"
-            class="bg-indigo-600 text-white px-5 py-2 rounded-lg text-sm font-medium hover:bg-indigo-700 transition">
-            Run Backtest
-          </button>
-          <div id="backtest-spinner" class="spinner hidden self-center"></div>
-        </div>
-        <p class="text-xs text-gray-400 mt-2">Uses 30 days of headlines (requires NewsAPI) and yfinance price data.</p>
+      <div id="bt-result">
+        <div class="empty"><div class="empty-icon">◈</div><div class="empty-text">Enter a ticker to run correlation analysis</div><div class="empty-sub">Requires 30 days of NewsAPI data</div></div>
       </div>
-
-      <div id="backtest-result"></div>
     </div>
 
   </main>
+</div>
 
-  <script>
-    const API = 'https://nlp-finance-sentiment-production.up.railway.app';
+<script>
+const API = 'https://nlp-finance-sentiment-production.up.railway.app';
 
-    // ── Tab switching ──────────────────────────────────────────────────────
-    function showTab(name) {
-      ['analyze','ticker','timeline','watchlist','backtest'].forEach(t => {
-        document.getElementById(`tab-${t}-content`).classList.toggle('hidden', t !== name);
-        const btn = document.getElementById(`tab-${t}`);
-        btn.classList.toggle('tab-active', t === name);
-        if (t !== name) btn.classList.remove('tab-active');
-      });
-      if (name === 'watchlist') fetchWatchlist();
-    }
+// ── Ticker tape ───────────────────────────────────────────────────────────────
+const TICKERS = [
+  ['AAPL','182.43','+1.24%','up'],['MSFT','415.20','+0.87%','up'],['NVDA','875.30','-1.02%','dn'],
+  ['TSLA','248.10','+2.31%','up'],['GOOGL','175.40','-0.43%','dn'],['AMZN','189.20','+1.15%','up'],
+  ['META','505.60','+0.72%','up'],['JPM','198.30','-0.31%','dn'],['GS','452.10','+1.43%','up'],
+  ['BRK.B','387.20','+0.22%','up'],['SPY','524.80','+0.65%','up'],['QQQ','448.30','+0.91%','up'],
+];
+const tape = document.getElementById('tape');
+// Double for seamless loop
+[...TICKERS,...TICKERS].forEach(([sym,price,chg,dir])=>{
+  const el = document.createElement('span');
+  el.className = 'tape-item';
+  el.innerHTML = `<span class="tape-sym">${sym}</span><span>${price}</span><span class="${dir==='up'?'tape-up':'tape-dn'}">${dir==='up'?'▲':'▼'} ${chg}</span>`;
+  tape.appendChild(el);
+});
 
-    // ── Sentiment helpers ──────────────────────────────────────────────────
-    function sentimentBadge(label) {
-      const cls = `sentiment-${label}`;
-      return `<span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold ${cls}">
-        <span class="w-1.5 h-1.5 rounded-full dot-${label}"></span>
-        ${label.charAt(0).toUpperCase() + label.slice(1)}
-      </span>`;
-    }
+// ── Navigation ────────────────────────────────────────────────────────────────
+function goto(page){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+  document.getElementById('page-'+page).classList.add('active');
+  event.currentTarget.classList.add('active');
+  if(page==='watchlist') loadWatchlist();
+}
 
-    function confidenceBar(scores) {
-      const colors = { positive: 'bg-green-500', neutral: 'bg-gray-400', negative: 'bg-red-500' };
-      return `<div class="flex gap-1 mt-2 h-2 rounded-full overflow-hidden bg-gray-100">
-        ${['positive','neutral','negative'].map(l =>
-          `<div class="confidence-bar ${colors[l]} rounded-full" style="width:${(scores[l]*100).toFixed(1)}%" title="${l}: ${(scores[l]*100).toFixed(1)}%"></div>`
-        ).join('')}
+// ── Helpers ───────────────────────────────────────────────────────────────────
+function badge(label){
+  const cls = label==='positive'?'badge-pos':label==='negative'?'badge-neg':'badge-neu';
+  const sym = label==='positive'?'▲':label==='negative'?'▼':'◆';
+  return `<span class="badge ${cls}"><span class="badge-dot"></span>${sym} ${label}</span>`;
+}
+
+function statCards(agg){
+  const sc = agg.score;
+  const scColor = sc>0.1?'stat-up':sc<-0.1?'stat-dn':'stat-neu';
+  const scLabel = sc>0.1?'Bullish':sc<-0.1?'Bearish':'Neutral';
+  return `<div class="stat-grid">
+    <div class="stat-card"><div class="stat-val stat-up">${agg.positive}</div><div class="stat-label">Positive</div></div>
+    <div class="stat-card"><div class="stat-val stat-neu">${agg.neutral}</div><div class="stat-label">Neutral</div></div>
+    <div class="stat-card"><div class="stat-val stat-dn">${agg.negative}</div><div class="stat-label">Negative</div></div>
+    <div class="stat-card"><div class="stat-val ${scColor}">${sc>0?'+':''}${sc.toFixed(2)}</div><div class="stat-label">${scLabel}</div></div>
+  </div>`;
+}
+
+// ── ANALYZE ───────────────────────────────────────────────────────────────────
+function setEx(el){ document.getElementById('hl-input').value = el.textContent.trim(); }
+
+async function doAnalyze(){
+  const hl = document.getElementById('hl-input').value.trim();
+  if(!hl) return;
+  document.getElementById('hl-spin').style.display='block';
+  document.getElementById('hl-result').style.display='none';
+  try{
+    const res = await fetch(`${API}/analyze`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({headline:hl})});
+    const d = await res.json();
+    const s = d.sentiment;
+    document.getElementById('hl-text').textContent = `"${d.headline}"`;
+    document.getElementById('hl-badge').innerHTML = badge(s.label);
+    document.getElementById('hl-conf').textContent = (s.confidence*100).toFixed(1)+'%';
+    document.getElementById('hl-bar-pos').style.width=(s.scores.positive*100)+'%';
+    document.getElementById('hl-bar-neu').style.width=(s.scores.neutral*100)+'%';
+    document.getElementById('hl-bar-neg').style.width=(s.scores.negative*100)+'%';
+    document.getElementById('hl-s-pos').textContent=(s.scores.positive*100).toFixed(0)+'%';
+    document.getElementById('hl-s-neu').textContent=(s.scores.neutral*100).toFixed(0)+'%';
+    document.getElementById('hl-s-neg').textContent=(s.scores.negative*100).toFixed(0)+'%';
+    // Position pointer: score = pos - neg, range -1..1 → 0..100%
+    const pos = ((s.scores.positive - s.scores.negative + 1)/2*100).toFixed(1);
+    document.getElementById('hl-pointer').style.left=pos+'%';
+    document.getElementById('hl-result').style.display='block';
+  }catch(e){alert('Error: '+e.message);}
+  document.getElementById('hl-spin').style.display='none';
+}
+
+// ── TICKER ────────────────────────────────────────────────────────────────────
+let tkChart;
+async function doTicker(){
+  const sym = document.getElementById('tk-sym').value.trim().toUpperCase();
+  const days = document.getElementById('tk-days').value;
+  if(!sym) return;
+  const spin = document.getElementById('tk-spin');
+  const out  = document.getElementById('tk-result');
+  spin.style.display='block'; out.innerHTML='';
+  try{
+    const res = await fetch(`${API}/ticker/${sym}?days=${days}&max_articles=25`);
+    if(!res.ok){const e=await res.json();throw new Error(e.detail);}
+    const d = await res.json();
+    const rows = d.headlines.map(h=>`
+      <tr>
+        <td style="width:56px;padding:12px 8px">${badge(h.sentiment.label)}</td>
+        <td class="hl-text" style="padding:12px 8px">
+          ${h.headline}
+          <div class="hl-meta">${h.source||''} ${h.published_at?'· '+new Date(h.published_at).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}):''}</div>
+        </td>
+        <td style="width:80px;text-align:right;padding:12px 8px">
+          <div class="hl-conf">${(h.sentiment.confidence*100).toFixed(0)}%</div>
+        </td>
+      </tr>`).join('');
+    out.innerHTML = `
+      <div style="display:flex;align-items:baseline;gap:12px;margin-bottom:20px">
+        <div style="font-family:var(--mono);font-size:28px;font-weight:600">${sym}</div>
+        <div style="color:var(--muted);font-size:14px">${d.company_name||''}</div>
+        <div style="margin-left:auto;font-family:var(--mono);font-size:12px;color:var(--muted)">${d.headlines.length} headlines · ${days}d window</div>
       </div>
-      <div class="flex gap-4 mt-1 text-xs text-gray-400">
-        ${['positive','neutral','negative'].map(l =>
-          `<span><span class="inline-block w-2 h-2 rounded-full dot-${l} mr-1"></span>${(scores[l]*100).toFixed(0)}%</span>`
-        ).join('')}
+      ${statCards(d.aggregate)}
+      <div class="card" style="padding:0">
+        <div class="section-hdr"><span class="section-title">News Coverage</span></div>
+        <table class="hl-table">${rows}</table>
       </div>`;
-    }
+  }catch(e){out.innerHTML=`<div class="card" style="color:var(--red)">${e.message}</div>`;}
+  spin.style.display='none';
+}
 
-    function aggregateCard(agg, title) {
-      const scoreColor = agg.score > 0.1 ? 'text-green-600' : agg.score < -0.1 ? 'text-red-600' : 'text-gray-500';
-      const scoreLabel = agg.score > 0.1 ? 'Bullish' : agg.score < -0.1 ? 'Bearish' : 'Neutral';
-      return `<div class="grid grid-cols-4 gap-4 mb-6">
-        <div class="bg-white border border-gray-200 rounded-xl p-4 shadow-sm text-center">
-          <div class="text-2xl font-bold text-green-600">${agg.positive}</div>
-          <div class="text-xs text-gray-500 mt-1">Positive</div>
-        </div>
-        <div class="bg-white border border-gray-200 rounded-xl p-4 shadow-sm text-center">
-          <div class="text-2xl font-bold text-gray-500">${agg.neutral}</div>
-          <div class="text-xs text-gray-500 mt-1">Neutral</div>
-        </div>
-        <div class="bg-white border border-gray-200 rounded-xl p-4 shadow-sm text-center">
-          <div class="text-2xl font-bold text-red-600">${agg.negative}</div>
-          <div class="text-xs text-gray-500 mt-1">Negative</div>
-        </div>
-        <div class="bg-white border border-gray-200 rounded-xl p-4 shadow-sm text-center">
-          <div class="text-2xl font-bold ${scoreColor}">${agg.score > 0 ? '+' : ''}${agg.score.toFixed(2)}</div>
-          <div class="text-xs text-gray-500 mt-1">${scoreLabel}</div>
-        </div>
+// ── TIMELINE ──────────────────────────────────────────────────────────────────
+let tlChart1, tlChart2;
+async function doTimeline(){
+  const sym = document.getElementById('tl-sym').value.trim().toUpperCase();
+  if(!sym) return;
+  const spin = document.getElementById('tl-spin');
+  const out  = document.getElementById('tl-result');
+  spin.style.display='block'; out.innerHTML='';
+  try{
+    const res = await fetch(`${API}/ticker/${sym}/timeline?days=30`);
+    if(!res.ok){const e=await res.json();throw new Error(e.detail);}
+    const d = await res.json();
+    if(!d.timeline.length){out.innerHTML='<div class="card" style="color:var(--muted)">No dated headlines found. Requires NewsAPI.</div>';spin.style.display='none';return;}
+    const labels = d.timeline.map(p=>p.date.slice(5));
+    const scores = d.timeline.map(p=>p.score);
+    const pos    = d.timeline.map(p=>p.positive);
+    const neu    = d.timeline.map(p=>p.neutral);
+    const neg    = d.timeline.map(p=>p.negative);
+    out.innerHTML = `
+      ${statCards(d.overall_aggregate)}
+      <div class="card" style="margin-bottom:12px">
+        <div class="section-hdr" style="margin-bottom:16px"><span class="section-title">Sentiment Score — ${sym} (30 days)</span></div>
+        <div class="chart-wrap"><canvas id="tl-c1"></canvas></div>
+      </div>
+      <div class="card">
+        <div class="section-hdr" style="margin-bottom:16px"><span class="section-title">Daily Volume by Sentiment</span></div>
+        <div class="chart-wrap"><canvas id="tl-c2"></canvas></div>
       </div>`;
-    }
+    const chartOpts = {responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:'#94a3b8',font:{family:'IBM Plex Mono',size:11}}}},scales:{x:{grid:{color:'#1e2d40'},ticks:{color:'#64748b',font:{family:'IBM Plex Mono',size:10}}},y:{grid:{color:'#1e2d40'},ticks:{color:'#64748b',font:{family:'IBM Plex Mono',size:10}}}}};
+    if(tlChart1)tlChart1.destroy();
+    if(tlChart2)tlChart2.destroy();
+    tlChart1 = new Chart(document.getElementById('tl-c1'),{type:'line',data:{labels,datasets:[{label:'Score',data:scores,borderColor:'#0ea5e9',backgroundColor:'rgba(14,165,233,.06)',fill:true,tension:.4,pointRadius:3,pointBackgroundColor:scores.map(s=>s>0.1?'#10b981':s<-0.1?'#f43f5e':'#f59e0b')}]},options:{...chartOpts,scales:{...chartOpts.scales,y:{...chartOpts.scales.y,min:-1,max:1,ticks:{...chartOpts.scales.y.ticks,callback:v=>v>0?`+${v}`:v}}}}});
+    tlChart2 = new Chart(document.getElementById('tl-c2'),{type:'bar',data:{labels,datasets:[{label:'Positive',data:pos,backgroundColor:'rgba(16,185,129,.7)',stack:'a'},{label:'Neutral',data:neu,backgroundColor:'rgba(245,158,11,.5)',stack:'a'},{label:'Negative',data:neg,backgroundColor:'rgba(244,63,94,.7)',stack:'a'}]},options:{...chartOpts,scales:{x:{...chartOpts.scales.x,stacked:true},y:{...chartOpts.scales.y,stacked:true}}}});
+  }catch(e){out.innerHTML=`<div class="card" style="color:var(--red)">${e.message}</div>`;}
+  spin.style.display='none';
+}
 
-    // ── Tab: Analyze ───────────────────────────────────────────────────────
-    function setExample(btn) {
-      document.getElementById('headline-input').value = btn.textContent.trim();
-    }
-
-    async function analyzeHeadline() {
-      const headline = document.getElementById('headline-input').value.trim();
-      if (!headline) return;
-      const spinner = document.getElementById('analyze-spinner');
-      const result  = document.getElementById('analyze-result');
-      spinner.classList.remove('hidden');
-      result.classList.add('hidden');
-
-      try {
-        const res  = await fetch(`${API}/analyze`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ headline })
-        });
-        const data = await res.json();
-        const s    = data.sentiment;
-
-        result.innerHTML = `
-          <div class="flex items-start justify-between mb-3">
-            <p class="text-sm text-gray-700 italic flex-1 mr-4">"${data.headline}"</p>
-            ${sentimentBadge(s.label)}
+// ── WATCHLIST ─────────────────────────────────────────────────────────────────
+async function loadWatchlist(){
+  const out = document.getElementById('wl-result');
+  out.innerHTML='<div class="empty"><div class="spinner" style="margin:0 auto"></div></div>';
+  try{
+    const res = await fetch(`${API}/watchlist`);
+    const d   = await res.json();
+    if(!d.tickers.length){out.innerHTML='<div class="empty"><div class="empty-text">Watchlist is empty. Add a ticker above.</div></div>';return;}
+    out.innerHTML = `<div class="watch-grid">${d.tickers.map(t=>{
+      const agg = t.aggregate;
+      const tot = Math.max(agg.total,1);
+      const scColor = agg.score>0.1?'var(--green)':agg.score<-0.1?'var(--red)':'var(--amber)';
+      const scLabel = agg.score>0.1?'▲ Bullish':agg.score<-0.1?'▼ Bearish':'◆ Neutral';
+      return `<div class="watch-card" onclick="gotoTicker('${t.symbol}')">
+        <div style="display:flex;align-items:start;justify-content:space-between;margin-bottom:4px">
+          <div><div class="watch-sym">${t.symbol}</div><div class="watch-name">${t.headline_count} headlines</div></div>
+          <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">
+            <span style="font-family:var(--mono);font-size:13px;font-weight:600;color:${scColor}">${scLabel}</span>
+            <button onclick="event.stopPropagation();doWlRemove('${t.symbol}')" style="font-size:11px;background:none;border:none;color:var(--muted);cursor:pointer;padding:0">remove</button>
           </div>
-          <div class="text-xs text-gray-500 mb-1">Confidence: ${(s.confidence * 100).toFixed(1)}%</div>
-          ${confidenceBar(s.scores)}`;
-        result.classList.remove('hidden');
-      } catch(e) {
-        result.innerHTML = `<p class="text-red-500 text-sm">Error: ${e.message}. Is the backend running on port 8000?</p>`;
-        result.classList.remove('hidden');
-      }
-      spinner.classList.add('hidden');
-    }
+        </div>
+        <div class="watch-bar" style="margin:12px 0 10px">
+          <div style="background:var(--green);opacity:.8;grid-column:1;width:${(agg.positive/tot*100).toFixed(0)}%;min-width:${agg.positive?'4px':'0'}"></div>
+          <div style="background:var(--amber);opacity:.6;grid-column:2;width:${(agg.neutral/tot*100).toFixed(0)}%;min-width:${agg.neutral?'4px':'0'}"></div>
+          <div style="background:var(--red);opacity:.8;grid-column:3;width:${(agg.negative/tot*100).toFixed(0)}%;min-width:${agg.negative?'4px':'0'}"></div>
+        </div>
+        <div style="display:flex;gap:12px;margin-bottom:10px">
+          <span style="font-family:var(--mono);font-size:11px;color:var(--green)">${agg.positive} pos</span>
+          <span style="font-family:var(--mono);font-size:11px;color:var(--amber)">${agg.neutral} neu</span>
+          <span style="font-family:var(--mono);font-size:11px;color:var(--red)">${agg.negative} neg</span>
+        </div>
+        ${t.latest_headline?`<div class="watch-latest" style="font-size:11px;color:var(--muted)">"${t.latest_headline}"</div>`:''}
+      </div>`;
+    }).join('')}</div>`;
+  }catch(e){out.innerHTML=`<div class="card" style="color:var(--red)">${e.message}</div>`;}
+}
 
-    // ── Tab: Ticker ────────────────────────────────────────────────────────
-    async function fetchTicker() {
-      const symbol  = document.getElementById('ticker-input').value.trim().toUpperCase();
-      const days    = document.getElementById('ticker-days').value;
-      if (!symbol) return;
-      const spinner = document.getElementById('ticker-spinner');
-      const result  = document.getElementById('ticker-result');
-      spinner.classList.remove('hidden');
-      result.innerHTML = '';
+function gotoTicker(sym){
+  document.getElementById('tk-sym').value=sym;
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+  document.querySelectorAll('.nav-item')[1].classList.add('active');
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.getElementById('page-ticker').classList.add('active');
+  doTicker();
+}
 
-      try {
-        const res  = await fetch(`${API}/ticker/${symbol}?days=${days}&max_articles=20`);
-        if (!res.ok) { const e = await res.json(); throw new Error(e.detail); }
-        const data = await res.json();
+async function doWlAdd(){
+  const sym = document.getElementById('wl-sym').value.trim().toUpperCase();
+  if(!sym) return;
+  try{
+    const res = await fetch(`${API}/watchlist`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({symbol:sym})});
+    if(!res.ok){const e=await res.json();alert(e.detail);return;}
+    document.getElementById('wl-sym').value='';
+    loadWatchlist();
+  }catch(e){alert(e.message);}
+}
 
-        const headlinesHtml = data.headlines.map(h => `
-          <div class="flex items-start justify-between gap-4 py-4 border-b border-gray-100 last:border-0">
-            <div class="flex-1">
-              <p class="text-sm text-gray-800 leading-snug">${h.headline}</p>
-              <p class="text-xs text-gray-400 mt-1">${h.source || ''} ${h.published_at ? '· ' + new Date(h.published_at).toLocaleDateString('en-US', {month:'short', day:'numeric'}) : ''}</p>
-            </div>
-            <div class="shrink-0 text-right">
-              ${sentimentBadge(h.sentiment.label)}
-              <p class="text-xs text-gray-400 mt-1">${(h.sentiment.confidence*100).toFixed(0)}% conf.</p>
-            </div>
-          </div>`).join('');
+async function doWlRemove(sym){
+  try{await fetch(`${API}/watchlist/${sym}`,{method:'DELETE'});loadWatchlist();}
+  catch(e){alert(e.message);}
+}
 
-        result.innerHTML = `
-          <div class="mb-4 flex items-center gap-3">
-            <h3 class="text-lg font-semibold">${symbol}</h3>
-            <span class="text-gray-400 text-sm">${data.company_name || ''}</span>
-          </div>
-          ${aggregateCard(data.aggregate)}
-          <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-            <div class="px-6 py-4 border-b border-gray-100">
-              <h4 class="text-sm font-semibold text-gray-700">${data.headlines.length} Headlines</h4>
-            </div>
-            <div class="px-6">${headlinesHtml}</div>
-          </div>`;
-      } catch(e) {
-        result.innerHTML = `<p class="text-red-500 text-sm">Error: ${e.message}</p>`;
-      }
-      spinner.classList.add('hidden');
-    }
-
-    // ── Tab: Timeline ──────────────────────────────────────────────────────
-    let timelineChart = null;
-
-    async function fetchTimeline() {
-      const symbol  = document.getElementById('timeline-input').value.trim().toUpperCase();
-      if (!symbol) return;
-      const spinner = document.getElementById('timeline-spinner');
-      const result  = document.getElementById('timeline-result');
-      spinner.classList.remove('hidden');
-      result.innerHTML = '';
-
-      try {
-        const res  = await fetch(`${API}/ticker/${symbol}/timeline?days=30`);
-        if (!res.ok) { const e = await res.json(); throw new Error(e.detail); }
-        const data = await res.json();
-
-        if (!data.timeline.length) {
-          result.innerHTML = `<p class="text-gray-500 text-sm">No dated headlines found. This feature requires NewsAPI.</p>`;
-          spinner.classList.add('hidden');
-          return;
-        }
-
-        const labels   = data.timeline.map(p => p.date);
-        const scores   = data.timeline.map(p => p.score);
-        const positive = data.timeline.map(p => p.positive);
-        const negative = data.timeline.map(p => p.negative);
-        const neutral  = data.timeline.map(p => p.neutral);
-
-        result.innerHTML = `
-          ${aggregateCard(data.overall_aggregate)}
-          <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-6 mb-4">
-            <h4 class="text-sm font-semibold text-gray-700 mb-4">Sentiment Score Over Time</h4>
-            <canvas id="score-chart" height="80"></canvas>
-          </div>
-          <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
-            <h4 class="text-sm font-semibold text-gray-700 mb-4">Daily Headline Volume by Sentiment</h4>
-            <canvas id="bar-chart" height="80"></canvas>
-          </div>`;
-
-        // Score line chart
-        if (timelineChart) timelineChart.destroy();
-        timelineChart = new Chart(document.getElementById('score-chart'), {
-          type: 'line',
-          data: {
-            labels,
-            datasets: [{
-              label: 'Sentiment Score',
-              data: scores,
-              borderColor: '#6366f1',
-              backgroundColor: 'rgba(99,102,241,0.08)',
-              fill: true,
-              tension: 0.4,
-              pointRadius: 4,
-              pointBackgroundColor: scores.map(s => s > 0.1 ? '#22c55e' : s < -0.1 ? '#ef4444' : '#9ca3af'),
-            }]
-          },
-          options: {
-            plugins: { legend: { display: false } },
-            scales: {
-              y: { min: -1, max: 1, grid: { color: '#f3f4f6' },
-                ticks: { callback: v => v > 0 ? `+${v}` : v, font: { size: 11 } } },
-              x: { grid: { display: false }, ticks: { font: { size: 10 } } }
-            }
-          }
-        });
-
-        // Stacked bar chart
-        new Chart(document.getElementById('bar-chart'), {
-          type: 'bar',
-          data: {
-            labels,
-            datasets: [
-              { label: 'Positive', data: positive, backgroundColor: '#86efac', stack: 'a' },
-              { label: 'Neutral',  data: neutral,  backgroundColor: '#d1d5db', stack: 'a' },
-              { label: 'Negative', data: negative, backgroundColor: '#fca5a5', stack: 'a' },
-            ]
-          },
-          options: {
-            plugins: { legend: { labels: { font: { size: 11 } } } },
-            scales: {
-              x: { stacked: true, grid: { display: false }, ticks: { font: { size: 10 } } },
-              y: { stacked: true, grid: { color: '#f3f4f6' }, ticks: { font: { size: 11 } } }
-            }
-          }
-        });
-
-      } catch(e) {
-        result.innerHTML = `<p class="text-red-500 text-sm">Error: ${e.message}</p>`;
-      }
-      spinner.classList.add('hidden');
-    }
-
-    // ── Tab: Watchlist ─────────────────────────────────────────────────────
-    async function fetchWatchlist() {
-      const result = document.getElementById('watchlist-result');
-      result.innerHTML = `<div class="flex justify-center py-12"><div class="spinner"></div></div>`;
-
-      try {
-        const res  = await fetch(`${API}/watchlist`);
-        const data = await res.json();
-
-        if (!data.tickers.length) {
-          result.innerHTML = `<p class="text-gray-500 text-sm text-center py-8">Your watchlist is empty. Add a ticker above.</p>`;
-          return;
-        }
-
-        const scoreColor = s => s > 0.1 ? 'text-green-600' : s < -0.1 ? 'text-red-600' : 'text-gray-500';
-        const scoreLabel = s => s > 0.1 ? '▲ Bullish' : s < -0.1 ? '▼ Bearish' : '— Neutral';
-
-        result.innerHTML = `<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          ${data.tickers.map(t => `
-            <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
-              <div class="flex items-center justify-between mb-3">
-                <div>
-                  <span class="text-lg font-bold">${t.symbol}</span>
-                  <span class="ml-2 text-sm font-semibold ${scoreColor(t.aggregate.score)}">${scoreLabel(t.aggregate.score)}</span>
-                </div>
-                <button onclick="removeFromWatchlist('${t.symbol}')"
-                  class="text-gray-300 hover:text-red-400 text-lg leading-none transition">×</button>
-              </div>
-              <div class="flex gap-3 text-xs text-center mb-3">
-                <div class="flex-1 bg-green-50 rounded-lg py-2">
-                  <div class="font-bold text-green-700 text-base">${t.aggregate.positive}</div>
-                  <div class="text-gray-400">Positive</div>
-                </div>
-                <div class="flex-1 bg-gray-50 rounded-lg py-2">
-                  <div class="font-bold text-gray-600 text-base">${t.aggregate.neutral}</div>
-                  <div class="text-gray-400">Neutral</div>
-                </div>
-                <div class="flex-1 bg-red-50 rounded-lg py-2">
-                  <div class="font-bold text-red-600 text-base">${t.aggregate.negative}</div>
-                  <div class="text-gray-400">Negative</div>
-                </div>
-              </div>
-              ${t.latest_headline ? `<p class="text-xs text-gray-400 leading-snug line-clamp-2">"${t.latest_headline}"</p>` : ''}
-            </div>`).join('')}
-        </div>`;
-      } catch(e) {
-        result.innerHTML = `<p class="text-red-500 text-sm">Error: ${e.message}. Is the backend running?</p>`;
-      }
-    }
-
-    // ── Tab: Backtest ──────────────────────────────────────────────────────
-    let backtestChart = null;
-
-    async function fetchBacktest() {
-      const symbol  = document.getElementById('backtest-input').value.trim().toUpperCase();
-      if (!symbol) return;
-      const spinner = document.getElementById('backtest-spinner');
-      const result  = document.getElementById('backtest-result');
-      spinner.classList.remove('hidden');
-      result.innerHTML = '';
-
-      try {
-        const res  = await fetch(`${API}/backtest/${symbol}`);
-        if (!res.ok) { const e = await res.json(); throw new Error(e.detail); }
-        const data = await res.json();
-
-        const corrColor = data.correlation > 0.1 ? 'text-green-600' : data.correlation < -0.1 ? 'text-red-600' : 'text-gray-500';
-
-        const signalRows = data.signal_days.map(d => `
-          <tr class="border-t border-gray-100">
-            <td class="py-2 text-sm text-gray-700">${d.date}</td>
-            <td class="py-2 text-sm font-medium ${d.sentiment_score > 0 ? 'text-green-600' : 'text-red-600'}">${d.sentiment_score > 0 ? '+' : ''}${d.sentiment_score}</td>
-            <td class="py-2 text-sm font-medium ${d.return_pct > 0 ? 'text-green-600' : 'text-red-600'}">${d.return_pct > 0 ? '+' : ''}${d.return_pct}%</td>
-            <td class="py-2 text-sm text-gray-500">$${d.close}</td>
-          </tr>`).join('');
-
-        result.innerHTML = `
-          <div class="grid grid-cols-3 gap-4 mb-6">
-            <div class="bg-white border border-gray-200 rounded-xl p-5 shadow-sm text-center">
-              <div class="text-3xl font-bold ${corrColor}">${data.correlation > 0 ? '+' : ''}${data.correlation}</div>
-              <div class="text-xs text-gray-500 mt-1">Pearson r</div>
-              <div class="text-xs font-medium ${corrColor} mt-1">${data.correlation_strength}</div>
-            </div>
-            <div class="bg-white border border-gray-200 rounded-xl p-5 shadow-sm text-center">
-              <div class="text-3xl font-bold text-green-600">+${data.stats.avg_next_day_return_after_positive}%</div>
-              <div class="text-xs text-gray-500 mt-1">Avg next-day return</div>
-              <div class="text-xs text-gray-400 mt-1">after positive sentiment</div>
-            </div>
-            <div class="bg-white border border-gray-200 rounded-xl p-5 shadow-sm text-center">
-              <div class="text-3xl font-bold text-red-600">${data.stats.avg_next_day_return_after_negative}%</div>
-              <div class="text-xs text-gray-500 mt-1">Avg next-day return</div>
-              <div class="text-xs text-gray-400 mt-1">after negative sentiment</div>
-            </div>
-          </div>
-
-          <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-6 mb-4">
-            <h4 class="text-sm font-semibold text-gray-700 mb-4">Sentiment Score vs. Next-Day Return</h4>
-            <canvas id="backtest-chart" height="80"></canvas>
-          </div>
-
-          <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
-            <h4 class="text-sm font-semibold text-gray-700 mb-4">Top Signal Days — Sentiment Confirmed by Price</h4>
-            <table class="w-full">
-              <thead><tr class="text-xs text-gray-400 uppercase tracking-wide">
-                <th class="text-left pb-2">Date</th>
-                <th class="text-left pb-2">Sentiment</th>
-                <th class="text-left pb-2">Next-Day Return</th>
-                <th class="text-left pb-2">Close</th>
-              </tr></thead>
-              <tbody>${signalRows || '<tr><td colspan="4" class="text-sm text-gray-400 py-4">No confirmed signal days found.</td></tr>'}</tbody>
-            </table>
-          </div>`;
-
-        // Dual-axis chart: sentiment score bars + return line
-        const labels  = data.daily_data.map(d => d.date);
-        const scores  = data.daily_data.map(d => d.sentiment_score);
-        const returns = data.daily_data.map(d => d.return_pct);
-
-        if (backtestChart) backtestChart.destroy();
-        backtestChart = new Chart(document.getElementById('backtest-chart'), {
-          data: {
-            labels,
-            datasets: [
-              {
-                type: 'bar',
-                label: 'Sentiment Score',
-                data: scores,
-                backgroundColor: scores.map(s => s > 0.1 ? 'rgba(34,197,94,0.5)' : s < -0.1 ? 'rgba(239,68,68,0.5)' : 'rgba(156,163,175,0.4)'),
-                yAxisID: 'y',
-              },
-              {
-                type: 'line',
-                label: 'Next-Day Return (%)',
-                data: returns,
-                borderColor: '#6366f1',
-                backgroundColor: 'transparent',
-                pointRadius: 3,
-                tension: 0.3,
-                yAxisID: 'y2',
-              }
-            ]
-          },
-          options: {
-            plugins: { legend: { labels: { font: { size: 11 } } } },
-            scales: {
-              y:  { position: 'left',  grid: { color: '#f3f4f6' }, ticks: { font: { size: 10 }, callback: v => v > 0 ? `+${v}` : v } },
-              y2: { position: 'right', grid: { display: false },   ticks: { font: { size: 10 }, callback: v => `${v}%` } },
-              x:  { grid: { display: false }, ticks: { font: { size: 10 } } }
-            }
-          }
-        });
-
-      } catch(e) {
-        result.innerHTML = `<p class="text-red-500 text-sm">Error: ${e.message}</p>`;
-      }
-      spinner.classList.add('hidden');
-    }
-
-    async function addToWatchlist() {
-      const symbol = document.getElementById('watchlist-add-input').value.trim().toUpperCase();
-      if (!symbol) return;
-      try {
-        const res = await fetch(`${API}/watchlist`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ symbol })
-        });
-        if (!res.ok) { const e = await res.json(); alert(e.detail); return; }
-        document.getElementById('watchlist-add-input').value = '';
-        fetchWatchlist();
-      } catch(e) { alert(e.message); }
-    }
-
-    async function removeFromWatchlist(symbol) {
-      try {
-        await fetch(`${API}/watchlist/${symbol}`, { method: 'DELETE' });
-        fetchWatchlist();
-      } catch(e) { alert(e.message); }
-    }
-  </script>
+// ── BACKTEST ──────────────────────────────────────────────────────────────────
+let btChart;
+async function doBacktest(){
+  const sym = document.getElementById('bt-sym').value.trim().toUpperCase();
+  if(!sym) return;
+  const spin = document.getElementById('bt-spin');
+  const out  = document.getElementById('bt-result');
+  spin.style.display='block'; out.innerHTML='';
+  try{
+    const res = await fetch(`${API}/backtest/${sym}`);
+    if(!res.ok){const e=await res.json();throw new Error(e.detail);}
+    const d = await res.json();
+    const corrColor = d.correlation>0.1?'var(--green)':d.correlation<-0.1?'var(--red)':'var(--amber)';
+    const signalRows = d.signal_days.map(s=>`<tr>
+      <td style="color:var(--dim)">${s.date}</td>
+      <td style="color:${s.sentiment_score>0?'var(--green)':'var(--red)'}">${s.sentiment_score>0?'+':''}${s.sentiment_score}</td>
+      <td style="color:${s.return_pct>0?'var(--green)':'var(--red)'}">${s.return_pct>0?'+':''}${s.return_pct}%</td>
+      <td style="color:var(--dim)">$${s.close}</td>
+    </tr>`).join('');
+    out.innerHTML=`
+      <div class="stat-grid" style="margin-bottom:20px">
+        <div class="stat-card"><div class="corr-val" style="color:${corrColor}">${d.correlation>0?'+':''}${d.correlation}</div><div class="stat-label">Pearson r</div><div style="font-size:11px;color:${corrColor};margin-top:4px">${d.correlation_strength}</div></div>
+        <div class="stat-card"><div class="stat-val stat-up">+${d.stats.avg_next_day_return_after_positive}%</div><div class="stat-label">After positive</div><div style="font-size:11px;color:var(--muted);margin-top:4px">Avg next-day return</div></div>
+        <div class="stat-card"><div class="stat-val stat-dn">${d.stats.avg_next_day_return_after_negative}%</div><div class="stat-label">After negative</div><div style="font-size:11px;color:var(--muted);margin-top:4px">Avg next-day return</div></div>
+        <div class="stat-card"><div class="stat-val" style="color:var(--accent)">${d.stats.total_days}</div><div class="stat-label">Days analyzed</div></div>
+      </div>
+      <div class="card" style="margin-bottom:12px">
+        <div class="section-hdr" style="margin-bottom:16px"><span class="section-title">Sentiment vs. Next-Day Return — ${sym}</span></div>
+        <div class="chart-wrap"><canvas id="bt-c"></canvas></div>
+      </div>
+      <div class="card">
+        <div class="section-hdr" style="margin-bottom:0"><span class="section-title">Top Signal Days — Sentiment Confirmed by Price</span></div>
+        <table class="signal-table">
+          <thead><tr><th>Date</th><th>Sentiment</th><th>Next-Day Return</th><th>Close</th></tr></thead>
+          <tbody>${signalRows||'<tr><td colspan="4" style="color:var(--muted);padding:16px">No confirmed signal days found.</td></tr>'}</tbody>
+        </table>
+      </div>`;
+    const labels  = d.daily_data.map(x=>x.date.slice(5));
+    const scores  = d.daily_data.map(x=>x.sentiment_score);
+    const returns = d.daily_data.map(x=>x.return_pct);
+    const chartOpts = {responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:'#94a3b8',font:{family:'IBM Plex Mono',size:11}}}},scales:{x:{grid:{color:'#1e2d40'},ticks:{color:'#64748b',font:{family:'IBM Plex Mono',size:10}}}}};
+    if(btChart)btChart.destroy();
+    btChart=new Chart(document.getElementById('bt-c'),{data:{labels,datasets:[{type:'bar',label:'Sentiment Score',data:scores,backgroundColor:scores.map(s=>s>0.1?'rgba(16,185,129,.6)':s<-0.1?'rgba(244,63,94,.6)':'rgba(245,158,11,.4)'),yAxisID:'y'},{type:'line',label:'Next-Day Return (%)',data:returns,borderColor:'#0ea5e9',backgroundColor:'transparent',pointRadius:3,tension:.3,yAxisID:'y2'}]},options:{...chartOpts,scales:{...chartOpts.scales,y:{position:'left',grid:{color:'#1e2d40'},ticks:{color:'#64748b',font:{family:'IBM Plex Mono',size:10},callback:v=>v>0?`+${v}`:v}},y2:{position:'right',grid:{display:false},ticks:{color:'#64748b',font:{family:'IBM Plex Mono',size:10},callback:v=>`${v}%`}}}}});
+  }catch(e){out.innerHTML=`<div class="card" style="color:var(--red)">${e.message}</div>`;}
+  spin.style.display='none';
+}
+</script>
 </body>
 </html>
